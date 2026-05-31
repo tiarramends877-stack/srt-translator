@@ -6,12 +6,13 @@
 
 ```bash
 # 1. 安装依赖
+pip install -e .        # 生产依赖
+# 或
 pip install -r requirements.txt
 
-# 2. 配置 DeepSeek API Key（任选一种）
-cp .env.example .env          # 然后编辑 .env 填入真实 key
-# 或
-export DEEPSEEK_API_KEY=sk-xxx
+# 2. 配置 DeepSeek API Key
+cp .env.example .env
+# 编辑 .env 填入真实 key
 
 # 3. 翻译
 python translate.py sample.en.srt
@@ -23,9 +24,9 @@ python translate.py sample.en.srt
 在 `.env` 中设置：
 
 ```env
-DEEPSEEK_API_KEY=sk-your-deepseek-api-key    # 必填
-DEEPSEEK_BASE_URL=https://api.deepseek.com    # 可选，默认值
-DEEPSEEK_MODEL=deepseek-chat                  # 可选，默认值
+DEEPSEEK_API_KEY=sk-your-deepseek-api-key
+DEEPSEEK_BASE_URL=https://api.deepseek.com
+DEEPSEEK_MODEL=deepseek-chat
 ```
 
 也可以使用命令行参数覆盖：
@@ -67,7 +68,7 @@ python translate.py movie.en.srt -o movie.zh.srt --model deepseek-chat
 python translate.py movie.en.srt --batch-size 30 -v
 
 # 兼容 OpenAI 或其他兼容 API
-python translate.py movie.en.srt \
+python translate.py movie.srt \
   --base-url https://api.openai.com/v1 \
   --model gpt-4o-mini \
   --api-key sk-your-openai-key
@@ -76,10 +77,33 @@ python translate.py movie.en.srt \
 ## 项目结构
 
 ```
-├── translate.py       # 主程序
-├── requirements.txt   # Python 依赖
-├── .env.example       # 环境变量模板
-└── README.md          # 本文件
+├── translate.py                # 入口（薄封装）
+├── srt_translator/             # 核心包
+│   ├── __init__.py
+│   ├── cli.py                  # 命令行入口 + 错误提示
+│   ├── config.py               # 环境变量 + 命令行参数
+│   ├── errors.py               # 自定义错误类型
+│   ├── srt_parser.py           # SRT 解析 / 序列化
+│   └── translator.py           # DeepSeek API 翻译
+├── tests/                      # 测试
+│   ├── test_srt_parser.py      # 解析 / 序列化测试
+│   └── test_output_filename.py # 输出文件名测试
+├── pyproject.toml              # 项目配置 + 依赖
+├── requirements.txt            # pip 依赖（简洁版）
+├── .env.example                # 环境变量模板
+└── README.md
+```
+
+## 运行测试
+
+```bash
+# 安装开发依赖
+pip install -e ".[dev]"
+# 或
+pip install pytest
+
+# 运行测试
+pytest
 ```
 
 ## 依赖
@@ -87,3 +111,4 @@ python translate.py movie.en.srt \
 - Python ≥ 3.9
 - `openai` — OpenAI Python SDK（DeepSeek 兼容）
 - `python-dotenv` — .env 文件加载
+- `pytest` — 测试框架（开发依赖）
