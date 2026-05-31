@@ -137,6 +137,8 @@ python server/main.py
 4. 选择项目中的 `extension/` 目录
 5. 工具栏出现插件图标，点击即可使用
 
+> *(插件截图：popup 窗口显示 3 步说明、文件选择按钮、Translate 按钮和 Download 按钮)*
+
 ### 使用方法
 
 > ⚠️ 先启动本地 server：`python server/main.py`

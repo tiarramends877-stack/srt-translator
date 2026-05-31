@@ -41,9 +41,14 @@ function downloadBlob(filename, text) {
   URL.revokeObjectURL(url);
 }
 
-function resetState() {
-  translated = null;
-  btnDl.disabled = true;
+function setLoading(loading) {
+  btnTrans.disabled = loading;
+  btnTrans.textContent = loading ? "Translating…" : "Translate";
+  if (loading) {
+    btnTrans.classList.add("loading");
+  } else {
+    btnTrans.classList.remove("loading");
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -55,19 +60,24 @@ fileInput.addEventListener("change", () => {
   if (!file) return;
 
   selectedFile = file;
-  fileLabel.textContent = file.name;
+  fileLabel.textContent = "📄 " + file.name;
   fileLabel.classList.add("has-file");
   btnTrans.disabled = false;
-  setStatus(`Ready: ${file.name}`, "status-idle");
-  resetState();
+  btnDl.disabled = true;
+  translated = null;
+  setStatus("Ready to translate: " + file.name, "status-idle");
 });
 
 btnTrans.addEventListener("click", async () => {
-  if (!selectedFile) return;
+  if (!selectedFile) {
+    setStatus("Please choose a .srt file first", "status-error");
+    return;
+  }
 
-  btnTrans.disabled = true;
+  setLoading(true);
   setStatus("Translating…", "status-loading");
-  resetState();
+  translated = null;
+  btnDl.disabled = true;
 
   try {
     // 1. Read file
@@ -76,7 +86,6 @@ btnTrans.addEventListener("click", async () => {
       content = await readFile(selectedFile);
     } catch {
       setStatus("Failed to read file. Please try again.", "status-error");
-      btnTrans.disabled = false;
       return;
     }
 
@@ -93,10 +102,9 @@ btnTrans.addEventListener("click", async () => {
       });
     } catch {
       setStatus(
-        "Cannot reach local server.\nPlease start the local server first:\npython server/main.py",
+        "Please start the local server first:\npython server/main.py\n→ http://localhost:8000",
         "status-error"
       );
-      btnTrans.disabled = false;
       return;
     }
 
@@ -104,7 +112,6 @@ btnTrans.addEventListener("click", async () => {
     if (!resp.ok) {
       const detail = (await resp.json().catch(() => ({}))).detail || `HTTP ${resp.status}`;
       setStatus(`Translation failed: ${detail}`, "status-error");
-      btnTrans.disabled = false;
       return;
     }
 
@@ -112,7 +119,7 @@ btnTrans.addEventListener("click", async () => {
     translated = data;
 
     setStatus(
-      `Done — ${selectedFile.name} → ${data.output_filename}`,
+      "Done — " + data.output_filename,
       "status-success"
     );
     btnDl.disabled = false;
@@ -120,12 +127,12 @@ btnTrans.addEventListener("click", async () => {
   } catch (e) {
     setStatus(`Unexpected error: ${e.message}`, "status-error");
   } finally {
-    btnTrans.disabled = false;
+    setLoading(false);
   }
 });
 
 btnDl.addEventListener("click", () => {
   if (!translated) return;
   downloadBlob(translated.output_filename, translated.translated_content);
-  setStatus(`Downloaded: ${translated.output_filename}`, "status-success");
+  setStatus("Downloaded: " + translated.output_filename, "status-success");
 });
