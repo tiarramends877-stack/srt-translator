@@ -64,6 +64,8 @@ def translate_blocks(
             ) from e
 
         translated_text = response.choices[0].message.content.strip()
+        # 清理模型可能在末尾追加的分隔符
+        translated_text = translated_text.rstrip().rstrip(_SEPARATOR.strip())
 
         # 按分隔符切分回单条，清理残留
         translated_parts = translated_text.split(_SEPARATOR.strip())
