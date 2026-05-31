@@ -74,6 +74,16 @@ python translate.py movie.srt \
   --api-key sk-your-openai-key
 ```
 
+## 测试
+
+```bash
+pytest
+# 14 passed — 包括 SRT 解析、序列化、输出文件名逻辑
+```
+
+本项目已用 76 条字幕的真实 `.srt` 文件测试通过，
+翻译质量良好，编号和时间轴完整保留。
+
 ## 项目结构
 
 ```

@@ -65,12 +65,13 @@ def translate_blocks(
 
         translated_text = response.choices[0].message.content.strip()
 
-        # 按分隔符切分回单条
+        # 按分隔符切分回单条，清理残留
         translated_parts = translated_text.split(_SEPARATOR.strip())
+        translated_parts = [s.strip().strip("\\n") for s in translated_parts]
 
         # 如果切分数量不匹配，尝试用更宽松的方式
         if len(translated_parts) != len(source_texts):
-            translated_parts = [s.strip() for s in translated_text.split("\n---SPLIT---\n")]
+            translated_parts = [s.strip().strip("\\n") for s in translated_text.split("\n---SPLIT---\n")]
 
         if len(translated_parts) != len(source_texts):
             print(

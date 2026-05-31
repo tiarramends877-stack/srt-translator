@@ -17,5 +17,8 @@ venv/
 # macOS
 .DS_Store
 
-# 输出文件（可选忽略）
+# 真实字幕文件（仅保留 example.en.srt 作为样例）
+TOS-en.srt
+
+# 输出文件
 *.zh.srt
