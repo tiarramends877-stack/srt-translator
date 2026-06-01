@@ -131,6 +131,41 @@
     }
     #debug .debug-label { font-weight: 600; color: #495057; }
 
+    /* ---- Captions box ---- */
+    #captions-box {
+      display: none;
+      margin-bottom: 10px;
+      padding: 8px 10px;
+      background: #e8f5e9;
+      border-radius: 5px;
+      font-size: 11px;
+      line-height: 1.6;
+      color: #2e7d32;
+    }
+    #captions-box.visible { display: block; }
+    #captions-box .captions-title {
+      font-weight: 700;
+      margin-bottom: 4px;
+    }
+    #captions-box ul {
+      list-style: none;
+      padding: 0;
+      margin: 0;
+    }
+    #captions-box li {
+      padding: 1px 0;
+    }
+    #captions-box .tag {
+      display: inline-block;
+      font-size: 9px;
+      padding: 0 4px;
+      border-radius: 3px;
+      margin-left: 4px;
+      vertical-align: middle;
+    }
+    .tag-asr    { background: #fff3e0; color: #e65100; }
+    .tag-manual { background: #e3f2fd; color: #1565c0; }
+
     /* ---- Status ---- */
     #status {
       min-height: 34px;
@@ -163,6 +198,12 @@
     <div><span class="debug-label">Tab URL:</span> <span id="dbg-url">…</span></div>
     <div><span class="debug-label">YouTube:</span> <span id="dbg-is-yt">…</span></div>
     <div><span class="debug-label">Title:</span> <span id="dbg-title">…</span></div>
+    <div><span class="debug-label">Captions:</span> <span id="dbg-captions">…</span></div>
+  </div>
+
+  <div id="captions-box">
+    <div class="captions-title">Available Captions</div>
+    <div id="captions-list"></div>
   </div>
 
   <label class="file-btn" for="file-input" id="file-label">Choose .srt file</label>
