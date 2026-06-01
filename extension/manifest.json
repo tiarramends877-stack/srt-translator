@@ -1,11 +1,22 @@
 {
   "manifest_version": 3,
   "name": "SRT Translator",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Translate English .srt subtitles to Simplified Chinese via local DeepSeek API.",
   "action": {
     "default_popup": "popup.html",
     "default_title": "SRT Translator"
   },
-  "permissions": []
+  "permissions": ["activeTab"],
+  "content_scripts": [
+    {
+      "matches": [
+        "*://www.youtube.com/watch*",
+        "*://youtube.com/watch*",
+        "*://m.youtube.com/watch*"
+      ],
+      "js": ["content.js"],
+      "run_at": "document_idle"
+    }
+  ]
 }

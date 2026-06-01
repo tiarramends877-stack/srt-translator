@@ -9,9 +9,15 @@ const fileLabel  = document.getElementById("file-label");
 const btnTrans   = document.getElementById("btn-translate");
 const btnDl      = document.getElementById("btn-download");
 const statusEl   = document.getElementById("status");
+const ytInfo     = document.getElementById("yt-info");
+const ytTitle    = document.getElementById("yt-title");
+const dbgUrl     = document.getElementById("dbg-url");
+const dbgIsYt    = document.getElementById("dbg-is-yt");
+const dbgTitle   = document.getElementById("dbg-title");
 
 let selectedFile = null;
-let translated   = null;   // { output_filename, translated_content }
+let translated   = null;           // { output_filename, translated_content }
+let youtubeTitle = null;           // 非空=当前页是YouTube视频
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -29,6 +35,15 @@ function readFile(file) {
     reader.onerror = () => reject(new Error("Failed to read file"));
     reader.readAsText(file, "UTF-8");
   });
+}
+
+/** 将视频标题转为安全文件名：保留中文、英文、数字、空格、连字符、下划线 */
+function safeFilename(title) {
+  return title
+    .replace(/[^\w一-鿿 \-]/g, "")
+    .replace(/\s+/g, " ")
+    .trim()
+    .slice(0, 120);
 }
 
 function downloadBlob(filename, text) {
@@ -50,6 +65,83 @@ function setLoading(loading) {
     btnTrans.classList.remove("loading");
   }
 }
+
+/** 返回本次下载应使用的文件名 */
+function downloadFilename() {
+  if (youtubeTitle) {
+    return safeFilename(youtubeTitle) + ".zh.srt";
+  }
+  return translated ? translated.output_filename : "output.zh.srt";
+}
+
+/** 清除 " - YouTube" 后缀，返回干净的标题 */
+function cleanTitle(raw) {
+  return (raw || "").replace(/\s*-\s*YouTube\s*$/i, "").trim();
+}
+
+// ---------------------------------------------------------------------------
+// YouTube 检测（popup 打开时）
+// ---------------------------------------------------------------------------
+
+(async function detectYouTube() {
+  dbgUrl.textContent   = "…";
+  dbgIsYt.textContent  = "…";
+  dbgTitle.textContent = "…";
+
+  try {
+    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+    if (!tab || !tab.url) {
+      dbgUrl.textContent = "(no tab)";
+      return;
+    }
+
+    dbgUrl.textContent = tab.url;
+
+    // 解析 URL，检查是否是 YouTube 视频页
+    const url = new URL(tab.url);
+    const isYouTube = (
+      url.hostname === "www.youtube.com" ||
+      url.hostname === "youtube.com" ||
+      url.hostname === "m.youtube.com"
+    ) && url.pathname.startsWith("/watch");
+
+    dbgIsYt.textContent = isYouTube ? "yes" : "no";
+
+    if (!isYouTube) return; // 非 YouTube，什么都不做
+
+    // 方案 A：直接用 tab.title（不需要 content script）
+    if (tab.title) {
+      youtubeTitle = cleanTitle(tab.title);
+      dbgTitle.textContent = youtubeTitle || "(empty after clean)";
+      ytTitle.textContent = youtubeTitle;
+      ytInfo.classList.add("visible");
+      if (!selectedFile) {
+        setStatus("YouTube: " + youtubeTitle, "status-idle");
+      }
+      return;
+    }
+
+    // 方案 B：tab.title 为空，fallback 到 content script
+    dbgTitle.textContent = "(tab.title empty, trying content script)";
+    try {
+      const info = await chrome.tabs.sendMessage(tab.id, { type: "GET_VIDEO_INFO" });
+      if (info && info.title) {
+        youtubeTitle = cleanTitle(info.title);
+        dbgTitle.textContent = youtubeTitle || "(empty after clean)";
+        ytTitle.textContent = youtubeTitle;
+        ytInfo.classList.add("visible");
+        setStatus("YouTube: " + youtubeTitle, "status-idle");
+      }
+    } catch (csErr) {
+      dbgTitle.textContent = "(content script unavailable)";
+      console.debug("SRT Translator: content script not available", csErr);
+    }
+
+  } catch (err) {
+    dbgUrl.textContent = "error: " + err.message;
+    console.debug("SRT Translator: tab query failed", err);
+  }
+})();
 
 // ---------------------------------------------------------------------------
 // Handlers
@@ -118,8 +210,9 @@ btnTrans.addEventListener("click", async () => {
     const data = await resp.json();
     translated = data;
 
+    const outName = downloadFilename();
     setStatus(
-      "Done — " + data.output_filename,
+      "Done — " + outName,
       "status-success"
     );
     btnDl.disabled = false;
@@ -133,6 +226,7 @@ btnTrans.addEventListener("click", async () => {
 
 btnDl.addEventListener("click", () => {
   if (!translated) return;
-  downloadBlob(translated.output_filename, translated.translated_content);
-  setStatus("Downloaded: " + translated.output_filename, "status-success");
+  const outName = downloadFilename();
+  downloadBlob(outName, translated.translated_content);
+  setStatus("Downloaded: " + outName, "status-success");
 });
