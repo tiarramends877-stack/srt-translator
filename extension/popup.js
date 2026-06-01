@@ -14,6 +14,9 @@ const ytTitle    = document.getElementById("yt-title");
 const dbgUrl     = document.getElementById("dbg-url");
 const dbgIsYt    = document.getElementById("dbg-is-yt");
 const dbgTitle   = document.getElementById("dbg-title");
+const dbgCapt    = document.getElementById("dbg-captions");
+const capBox     = document.getElementById("captions-box");
+const capList    = document.getElementById("captions-list");
 
 let selectedFile = null;
 let translated   = null;           // { output_filename, translated_content }
@@ -79,6 +82,34 @@ function cleanTitle(raw) {
   return (raw || "").replace(/\s*-\s*YouTube\s*$/i, "").trim();
 }
 
+/** 渲染字幕语言列表 */
+function renderCaptions(data) {
+  if (!data || data.status === "detection_failed") {
+    dbgCapt.textContent = "detection failed";
+    capList.innerHTML = "Could not detect captions. Try refreshing the YouTube page.";
+    capBox.classList.add("visible");
+    return;
+  }
+  if (data.status === "not_found" || !data.languages || data.languages.length === 0) {
+    dbgCapt.textContent = "none";
+    capList.innerHTML = "No captions found for this video.";
+    capBox.classList.add("visible");
+    return;
+  }
+  dbgCapt.textContent = `yes (${data.languages.length})`;
+
+  let html = "<ul>";
+  for (const lang of data.languages) {
+    const tag = lang.kind === "asr"
+      ? '<span class="tag tag-asr">auto</span>'
+      : (lang.kind !== "manual" ? `<span class="tag tag-manual">${lang.kind}</span>` : "");
+    html += `<li>${lang.name} (${lang.languageCode})${tag}</li>`;
+  }
+  html += "</ul>";
+  capList.innerHTML = html;
+  capBox.classList.add("visible");
+}
+
 // ---------------------------------------------------------------------------
 // YouTube 检测（popup 打开时）
 // ---------------------------------------------------------------------------
@@ -87,6 +118,7 @@ function cleanTitle(raw) {
   dbgUrl.textContent   = "…";
   dbgIsYt.textContent  = "…";
   dbgTitle.textContent = "…";
+  dbgCapt.textContent  = "…";
 
   try {
     const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
@@ -109,6 +141,7 @@ function cleanTitle(raw) {
 
     if (!isYouTube) return; // 非 YouTube，什么都不做
 
+    // ---- 获取视频标题 ----
     // 方案 A：直接用 tab.title（不需要 content script）
     if (tab.title) {
       youtubeTitle = cleanTitle(tab.title);
@@ -118,23 +151,31 @@ function cleanTitle(raw) {
       if (!selectedFile) {
         setStatus("YouTube: " + youtubeTitle, "status-idle");
       }
-      return;
+    } else {
+      // 方案 B：fallback 到 content script
+      dbgTitle.textContent = "(tab.title empty, trying content script)";
+      try {
+        const info = await chrome.tabs.sendMessage(tab.id, { type: "GET_VIDEO_INFO" });
+        if (info && info.title) {
+          youtubeTitle = cleanTitle(info.title);
+          dbgTitle.textContent = youtubeTitle || "(empty after clean)";
+          ytTitle.textContent = youtubeTitle;
+          ytInfo.classList.add("visible");
+          setStatus("YouTube: " + youtubeTitle, "status-idle");
+        }
+      } catch {
+        dbgTitle.textContent = "(content script unavailable)";
+      }
     }
 
-    // 方案 B：tab.title 为空，fallback 到 content script
-    dbgTitle.textContent = "(tab.title empty, trying content script)";
+    // ---- 获取字幕语言列表 ----
     try {
-      const info = await chrome.tabs.sendMessage(tab.id, { type: "GET_VIDEO_INFO" });
-      if (info && info.title) {
-        youtubeTitle = cleanTitle(info.title);
-        dbgTitle.textContent = youtubeTitle || "(empty after clean)";
-        ytTitle.textContent = youtubeTitle;
-        ytInfo.classList.add("visible");
-        setStatus("YouTube: " + youtubeTitle, "status-idle");
-      }
-    } catch (csErr) {
-      dbgTitle.textContent = "(content script unavailable)";
-      console.debug("SRT Translator: content script not available", csErr);
+      const captions = await chrome.tabs.sendMessage(tab.id, { type: "GET_CAPTIONS" });
+      renderCaptions(captions);
+    } catch {
+      dbgCapt.textContent = "detection failed";
+      capList.innerHTML = "Could not detect captions. Try refreshing the YouTube page.";
+      capBox.classList.add("visible");
     }
 
   } catch (err) {
