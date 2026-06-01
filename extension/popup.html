@@ -101,6 +101,36 @@
     .btn-download { background: #51cf66; color: #fff; }
     .btn-download:hover:not(:disabled) { background: #40c057; }
 
+    /* ---- YouTube info ---- */
+    #yt-info {
+      display: none;
+      margin-bottom: 10px;
+      padding: 8px 10px;
+      background: #fff3e0;
+      border-radius: 5px;
+      font-size: 11px;
+      color: #e65100;
+      text-align: center;
+      word-break: break-word;
+      line-height: 1.4;
+    }
+    #yt-info.visible { display: block; }
+    #yt-info .yt-label { font-weight: 700; }
+
+    /* ---- Debug ---- */
+    #debug {
+      margin-bottom: 10px;
+      padding: 6px 8px;
+      background: #f1f3f5;
+      border-radius: 4px;
+      font-size: 10px;
+      line-height: 1.6;
+      color: #868e96;
+      word-break: break-all;
+      font-family: "SF Mono", "Menlo", monospace;
+    }
+    #debug .debug-label { font-weight: 600; color: #495057; }
+
     /* ---- Status ---- */
     #status {
       min-height: 34px;
@@ -125,6 +155,14 @@
     <div class="step"><span class="step-num">1</span> Start local server at <code>http://localhost:8000</code></div>
     <div class="step"><span class="step-num">2</span> Choose a <code>.srt</code> file</div>
     <div class="step"><span class="step-num">3</span> Translate &amp; download <code>.zh.srt</code></div>
+  </div>
+
+  <div id="yt-info">📺 <span class="yt-label">YouTube:</span> <span id="yt-title"></span></div>
+
+  <div id="debug">
+    <div><span class="debug-label">Tab URL:</span> <span id="dbg-url">…</span></div>
+    <div><span class="debug-label">YouTube:</span> <span id="dbg-is-yt">…</span></div>
+    <div><span class="debug-label">Title:</span> <span id="dbg-title">…</span></div>
   </div>
 
   <label class="file-btn" for="file-input" id="file-label">Choose .srt file</label>

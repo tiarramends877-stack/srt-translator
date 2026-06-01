@@ -29,7 +29,8 @@
 ├── extension/                   # Chrome 插件 (Manifest V3)
 │   ├── manifest.json
 │   ├── popup.html
-│   └── popup.js
+│   ├── popup.js
+│   └── content.js               #   YouTube 页面标题识别
 ├── tests/
 │   ├── test_srt_parser.py
 │   ├── test_output_filename.py
@@ -150,6 +151,10 @@ python server/main.py
 
 如果本地 API 未启动，插件会显示：**Please start the local server first**。
 
+在 YouTube 视频页（`youtube.com/watch`）打开插件时，
+插件会自动识别当前视频标题，下载时以视频标题命名 `.zh.srt` 文件。
+（不自动读取 YouTube 字幕、不注入字幕覆盖。）
+
 ## 测试
 
 ```bash
@@ -165,7 +170,7 @@ pytest
 ## 当前限制
 
 - 仅支持 `.srt` 格式字幕文件
-- Chrome 插件不自动读取 YouTube 字幕
+- YouTube 集成目前仅识别视频标题（用于命名），不自动读取字幕
 - 不做视频字幕覆盖注入
 - Chrome 插件依赖本地 server 运行
 
