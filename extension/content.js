@@ -252,6 +252,7 @@ function buildResult(tracks) {
     name: (t.name && t.name.simpleText) || t.languageCode || "unknown",
     kind: t.kind || "manual",
     hasBaseUrl: !!t.baseUrl,
+    baseUrl: t.baseUrl || "",
   }));
 
   return { found: true, status: "found", languages };

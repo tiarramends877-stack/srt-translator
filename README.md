@@ -152,9 +152,15 @@ python server/main.py
 如果本地 API 未启动，插件会显示：**Please start the local server first**。
 
 在 YouTube 视频页（`youtube.com/watch`）打开插件时，
-插件会自动识别当前视频标题，下载时以视频标题命名 `.zh.srt` 文件。
-同时显示该视频可用的字幕语言列表（v0.4.0；仅检测，不抓取字幕内容）。
-（不自动读取 YouTube 字幕内容、不注入字幕覆盖。）
+插件会自动识别当前视频标题并显示可用字幕语言列表。
+
+### YouTube 功能（v0.5.0）
+
+- **Download Original SRT**：选择字幕轨道 → 插件从 YouTube 抓取原始字幕
+  → 转换为标准 `.srt` 格式 → 下载 `视频标题.en.srt`
+- **手动翻译**：仍可先下载原始 SRT，再通过上方的文件选择 → Translate 流程
+  获得中文 `.zh.srt`
+- 当前不会自动翻译 YouTube 字幕。先下载原始字幕，再手动翻译。
 
 ## 测试
 

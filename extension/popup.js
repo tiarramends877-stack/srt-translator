@@ -1,5 +1,5 @@
 // ---------------------------------------------------------------------------
-// SRT Translator — Chrome Extension Popup
+// SRT Translator — Chrome Extension Popup (v0.5.0)
 // ---------------------------------------------------------------------------
 
 const API_URL = "http://localhost:8000/translate-srt";
@@ -17,10 +17,12 @@ const dbgTitle   = document.getElementById("dbg-title");
 const dbgCapt    = document.getElementById("dbg-captions");
 const capBox     = document.getElementById("captions-box");
 const capList    = document.getElementById("captions-list");
+const btnDlSrt   = document.getElementById("btn-dl-srt");
 
-let selectedFile = null;
-let translated   = null;           // { output_filename, translated_content }
-let youtubeTitle = null;           // 非空=当前页是YouTube视频
+let selectedFile  = null;
+let translated    = null;         // { output_filename, translated_content }
+let youtubeTitle  = null;         // 非空=当前页是YouTube视频
+let captionTracks = [];           // [{ languageCode, name, kind, baseUrl }]
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -40,7 +42,6 @@ function readFile(file) {
   });
 }
 
-/** 将视频标题转为安全文件名：保留中文、英文、数字、空格、连字符、下划线 */
 function safeFilename(title) {
   return title
     .replace(/[^\w一-鿿 \-]/g, "")
@@ -69,7 +70,6 @@ function setLoading(loading) {
   }
 }
 
-/** 返回本次下载应使用的文件名 */
 function downloadFilename() {
   if (youtubeTitle) {
     return safeFilename(youtubeTitle) + ".zh.srt";
@@ -77,13 +77,18 @@ function downloadFilename() {
   return translated ? translated.output_filename : "output.zh.srt";
 }
 
-/** 清除 " - YouTube" 后缀，返回干净的标题 */
 function cleanTitle(raw) {
   return (raw || "").replace(/\s*-\s*YouTube\s*$/i, "").trim();
 }
 
-/** 渲染字幕语言列表 */
+// ---------------------------------------------------------------------------
+// Captions UI
+// ---------------------------------------------------------------------------
+
 function renderCaptions(data) {
+  captionTracks = [];
+  btnDlSrt.disabled = true;
+
   if (!data || data.status === "detection_failed") {
     dbgCapt.textContent = "detection failed";
     capList.innerHTML = "Could not detect captions. Try refreshing the YouTube page.";
@@ -96,18 +101,187 @@ function renderCaptions(data) {
     capBox.classList.add("visible");
     return;
   }
-  dbgCapt.textContent = `yes (${data.languages.length})`;
 
-  let html = "<ul>";
-  for (const lang of data.languages) {
+  dbgCapt.textContent = `yes (${data.languages.length})`;
+  captionTracks = data.languages;
+
+  // 渲染 radio 列表
+  let html = "";
+  for (let i = 0; i < captionTracks.length; i++) {
+    const lang = captionTracks[i];
     const tag = lang.kind === "asr"
       ? '<span class="tag tag-asr">auto</span>'
       : (lang.kind !== "manual" ? `<span class="tag tag-manual">${lang.kind}</span>` : "");
-    html += `<li>${lang.name} (${lang.languageCode})${tag}</li>`;
+    html += `<label class="track-row">`
+      + `<input type="radio" name="track" value="${i}">`
+      + `${lang.name} (${lang.languageCode})${tag}`
+      + `</label>`;
   }
-  html += "</ul>";
   capList.innerHTML = html;
+
+  // 选中第一个有 baseUrl 的 track
+  for (let i = 0; i < captionTracks.length; i++) {
+    if (captionTracks[i].baseUrl) {
+      capList.querySelector(`input[value="${i}"]`).checked = true;
+      btnDlSrt.disabled = false;
+      break;
+    }
+  }
+
+  // radio 切换时启用/禁用下载按钮
+  capList.querySelectorAll("input[type=radio]").forEach((r) => {
+    r.addEventListener("change", () => {
+      btnDlSrt.disabled = false;
+    });
+  });
+
   capBox.classList.add("visible");
+}
+
+// ---------------------------------------------------------------------------
+// SRT 下载
+// ---------------------------------------------------------------------------
+
+btnDlSrt.addEventListener("click", async () => {
+  const sel = capList.querySelector("input[name=track]:checked");
+  if (!sel) {
+    setStatus("Please choose a caption track first.", "status-error");
+    return;
+  }
+
+  const idx  = parseInt(sel.value);
+  const track = captionTracks[idx];
+  if (!track || !track.baseUrl) {
+    setStatus("This track has no downloadable URL.", "status-error");
+    return;
+  }
+
+  btnDlSrt.disabled = true;
+  setStatus("Downloading captions…", "status-loading");
+
+  try {
+    const raw = await fetchCaptions(track.baseUrl);
+    const srt = timedtextToSrt(raw);
+    if (!srt) {
+      throw new Error("empty result");
+    }
+
+    const outName = youtubeTitle
+      ? safeFilename(youtubeTitle) + "." + (track.languageCode === "en" ? "en" : track.languageCode) + ".srt"
+      : "captions." + track.languageCode + ".srt";
+
+    downloadBlob(outName, srt);
+    setStatus("Downloaded: " + outName, "status-success");
+  } catch (e) {
+    console.debug("SRT Translator: caption download failed", e);
+    setStatus("Could not download captions for this track.", "status-error");
+  } finally {
+    btnDlSrt.disabled = false;
+  }
+});
+
+async function fetchCaptions(baseUrl) {
+  // 优先 JSON3
+  const json3Url = baseUrl + "&fmt=json3";
+  try {
+    const resp = await fetch(json3Url);
+    if (resp.ok) {
+      const text = await resp.text();
+      if (text && text.includes('"events"')) return text;
+    }
+  } catch { /* fall through */ }
+
+  // 回退原始 XML
+  const resp = await fetch(baseUrl);
+  if (!resp.ok) throw new Error("HTTP " + resp.status);
+  return resp.text();
+}
+
+// ---------------------------------------------------------------------------
+// timedtext → SRT
+// ---------------------------------------------------------------------------
+
+function timedtextToSrt(raw) {
+  // 尝试 JSON3
+  if (raw.includes('"events"')) return json3ToSrt(raw);
+  // 否则按 XML
+  return xmlToSrt(raw);
+}
+
+function json3ToSrt(raw) {
+  let data;
+  try { data = JSON.parse(raw); } catch { return null; }
+  const events = data.events || [];
+  if (events.length === 0) return null;
+
+  const lines = [];
+  let n = 0;
+  for (const ev of events) {
+    if (!ev.segs) continue;
+    const text = ev.segs.map((s) => s.utf8 || "").join("").trim();
+    if (!text) continue;
+    n++;
+    const startMs = ev.tStartMs || 0;
+    const endMs   = startMs + (ev.dDurationMs || 0);
+    lines.push(String(n));
+    lines.push(msToSrtTime(startMs) + " --> " + msToSrtTime(endMs));
+    lines.push(decodeEntities(text));
+    lines.push("");
+  }
+  return n > 0 ? lines.join("\n") : null;
+}
+
+function xmlToSrt(raw) {
+  const parser = new DOMParser();
+  const doc = parser.parseFromString(raw, "text/xml");
+  const els = doc.querySelectorAll("text, p");
+  if (els.length === 0) return null;
+
+  const lines = [];
+  let n = 0;
+  for (const el of els) {
+    let start = parseFloat(el.getAttribute("t") || el.getAttribute("start") || "0");
+    let dur   = parseFloat(el.getAttribute("d") || el.getAttribute("dur") || "0");
+    // YouTube timedtext: t/d 单位是毫秒；某些旧格式可能是秒
+    if (start < 1000 && dur < 100 && els.length > 1) { start *= 1000; dur *= 1000; }
+    const text = (el.textContent || "").trim();
+    if (!text) continue;
+    n++;
+    const sMs = Math.round(start);
+    const eMs = Math.round(start + dur);
+    lines.push(String(n));
+    lines.push(msToSrtTime(sMs) + " --> " + msToSrtTime(eMs));
+    lines.push(decodeEntities(text));
+    lines.push("");
+  }
+  return n > 0 ? lines.join("\n") : null;
+}
+
+function msToSrtTime(ms) {
+  const h = Math.floor(ms / 3600000);
+  const m = Math.floor((ms % 3600000) / 60000);
+  const s = Math.floor((ms % 60000) / 1000);
+  const mi = Math.floor(ms % 1000);
+  return (
+    String(h).padStart(2, "0") + ":" +
+    String(m).padStart(2, "0") + ":" +
+    String(s).padStart(2, "0") + "," +
+    String(mi).padStart(3, "0")
+  );
+}
+
+function decodeEntities(text) {
+  return text
+    .replace(/&amp;/gi, "&")
+    .replace(/&lt;/gi, "<")
+    .replace(/&gt;/gi, ">")
+    .replace(/&quot;/gi, '"')
+    .replace(/&#39;/gi, "'")
+    .replace(/&apos;/gi, "'")
+    .replace(/&#x27;/gi, "'")
+    .replace(/&#(\d+);/g, (_, d) => String.fromCharCode(parseInt(d, 10)))
+    .replace(/\s*\n\s*/g, "\n")
+    .trim();
 }
 
 // ---------------------------------------------------------------------------
@@ -129,7 +303,6 @@ function renderCaptions(data) {
 
     dbgUrl.textContent = tab.url;
 
-    // 解析 URL，检查是否是 YouTube 视频页
     const url = new URL(tab.url);
     const isYouTube = (
       url.hostname === "www.youtube.com" ||
@@ -139,10 +312,9 @@ function renderCaptions(data) {
 
     dbgIsYt.textContent = isYouTube ? "yes" : "no";
 
-    if (!isYouTube) return; // 非 YouTube，什么都不做
+    if (!isYouTube) return;
 
     // ---- 获取视频标题 ----
-    // 方案 A：直接用 tab.title（不需要 content script）
     if (tab.title) {
       youtubeTitle = cleanTitle(tab.title);
       dbgTitle.textContent = youtubeTitle || "(empty after clean)";
@@ -152,7 +324,6 @@ function renderCaptions(data) {
         setStatus("YouTube: " + youtubeTitle, "status-idle");
       }
     } else {
-      // 方案 B：fallback 到 content script
       dbgTitle.textContent = "(tab.title empty, trying content script)";
       try {
         const info = await chrome.tabs.sendMessage(tab.id, { type: "GET_VIDEO_INFO" });
@@ -180,12 +351,11 @@ function renderCaptions(data) {
 
   } catch (err) {
     dbgUrl.textContent = "error: " + err.message;
-    console.debug("SRT Translator: tab query failed", err);
   }
 })();
 
 // ---------------------------------------------------------------------------
-// Handlers
+// 手动上传 .srt → 翻译（保留）
 // ---------------------------------------------------------------------------
 
 fileInput.addEventListener("change", () => {
@@ -213,7 +383,6 @@ btnTrans.addEventListener("click", async () => {
   btnDl.disabled = true;
 
   try {
-    // 1. Read file
     let content;
     try {
       content = await readFile(selectedFile);
@@ -222,7 +391,6 @@ btnTrans.addEventListener("click", async () => {
       return;
     }
 
-    // 2. Call API
     let resp;
     try {
       resp = await fetch(API_URL, {
@@ -241,7 +409,6 @@ btnTrans.addEventListener("click", async () => {
       return;
     }
 
-    // 3. Parse response
     if (!resp.ok) {
       const detail = (await resp.json().catch(() => ({}))).detail || `HTTP ${resp.status}`;
       setStatus(`Translation failed: ${detail}`, "status-error");
@@ -252,10 +419,7 @@ btnTrans.addEventListener("click", async () => {
     translated = data;
 
     const outName = downloadFilename();
-    setStatus(
-      "Done — " + outName,
-      "status-success"
-    );
+    setStatus("Done — " + outName, "status-success");
     btnDl.disabled = false;
 
   } catch (e) {
