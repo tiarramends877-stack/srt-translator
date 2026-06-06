@@ -147,13 +147,17 @@
       font-weight: 700;
       margin-bottom: 4px;
     }
-    #captions-box ul {
-      list-style: none;
-      padding: 0;
-      margin: 0;
+    #captions-box label.track-row {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      padding: 2px 0;
+      cursor: pointer;
+      font-size: 11px;
     }
-    #captions-box li {
-      padding: 1px 0;
+    #captions-box input[type="radio"] {
+      width: 13px; height: 13px;
+      flex-shrink: 0;
     }
     #captions-box .tag {
       display: inline-block;
@@ -165,6 +169,13 @@
     }
     .tag-asr    { background: #fff3e0; color: #e65100; }
     .tag-manual { background: #e3f2fd; color: #1565c0; }
+
+    .btn-dl-srt {
+      background: #ff9800;
+      color: #fff;
+      margin-top: 6px;
+    }
+    .btn-dl-srt:hover:not(:disabled) { background: #f57c00; }
 
     /* ---- Status ---- */
     #status {
@@ -204,6 +215,7 @@
   <div id="captions-box">
     <div class="captions-title">Available Captions</div>
     <div id="captions-list"></div>
+    <button class="btn btn-dl-srt" id="btn-dl-srt" disabled>Download Original SRT</button>
   </div>
 
   <label class="file-btn" for="file-input" id="file-label">Choose .srt file</label>
